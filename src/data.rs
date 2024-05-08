@@ -107,11 +107,11 @@ impl<'a> AsRef<[u8]> for Unit<'a> {
 /// The importance of a given unit.
 pub enum Priority {
     /// Not important at all.
-    Disposable = nal_priority_e::NAL_PRIORITY_DISPOSABLE as i32,
+    Disposable = nal_priority_e_NAL_PRIORITY_DISPOSABLE as i32,
     /// Not very important.
-    Low = nal_priority_e::NAL_PRIORITY_LOW as i32,
+    Low = nal_priority_e_NAL_PRIORITY_LOW as i32,
     /// Pretty important.
-    High = nal_priority_e::NAL_PRIORITY_HIGH as i32,
+    High = nal_priority_e_NAL_PRIORITY_HIGH as i32,
     /// Extremely important.
-    Highest = nal_priority_e::NAL_PRIORITY_HIGHEST as i32,
+    Highest = nal_priority_e_NAL_PRIORITY_HIGHEST as i32,
 }

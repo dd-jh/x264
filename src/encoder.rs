@@ -18,9 +18,12 @@ impl Encoder {
 
     #[doc(hidden)]
     pub unsafe fn from_raw(raw: *mut x264_t) -> Self {
-        let mut params = mem::uninitialized();
-        x264_encoder_parameters(raw, &mut params);
-        Self { raw, params }
+        let mut params = mem::MaybeUninit::uninit();
+        x264_encoder_parameters(raw, params.as_mut_ptr());
+        Self {
+            raw,
+            params: params.assume_init(),
+        }
     }
 
     /// Feeds a frame to the encoder.
@@ -49,28 +52,29 @@ impl Encoder {
     {
         let image = image.raw();
 
-        let mut picture = mem::uninitialized();
-        x264_picture_init(&mut picture);
+        let mut picture = mem::MaybeUninit::uninit();
+        x264_picture_init(picture.as_mut_ptr());
+        let mut picture = picture.assume_init();
         picture.i_pts = pts;
         picture.img = image;
 
         let mut len = 0;
-        let mut stuff = mem::uninitialized();
-        let mut raw = mem::uninitialized();
+        let mut stuff = mem::MaybeUninit::uninit();
+        let mut raw = mem::MaybeUninit::uninit();
 
         let err = x264_encoder_encode(
             self.raw,
-            &mut stuff,
+            stuff.as_mut_ptr(),
             &mut len,
             &mut picture,
-            &mut raw
+            raw.as_mut_ptr(),
         );
 
         if err < 0 {
             Err(Error)
         } else {
-            let data = Data::from_raw_parts(stuff, len as usize);
-            let picture = Picture::from_raw(raw);
+            let data = Data::from_raw_parts(stuff.assume_init(), len as usize);
+            let picture = Picture::from_raw(raw.assume_init());
             Ok((data, picture))
         }
     }
@@ -78,12 +82,12 @@ impl Encoder {
     /// Gets the video headers, which should be sent first.
     pub fn headers(&mut self) -> Result<Data> {
         let mut len = 0;
-        let mut stuff = unsafe { mem::uninitialized() };
+        let mut stuff = mem::MaybeUninit::uninit();
 
         let err = unsafe {
             x264_encoder_headers(
                 self.raw,
-                &mut stuff,
+                stuff.as_mut_ptr(),
                 &mut len
             )
         };
@@ -91,7 +95,7 @@ impl Encoder {
         if err < 0 {
             Err(Error)
         } else {
-            Ok(unsafe { Data::from_raw_parts(stuff, len as usize) })
+            Ok(unsafe { Data::from_raw_parts(stuff.assume_init(), len as usize) })
         }
     }
 
@@ -111,6 +115,22 @@ impl Encoder {
     /// ```
     pub fn flush(self) -> Flush {
         Flush { encoder: self }
+    }
+
+    /// If an intra refresh is not in progress, begin one with the next P-frame.
+    /// If an intra refresh is in progress, begin one as soon as the current one finishes.
+    /// Requires that b_intra_refresh be set.
+    ///
+    /// Useful for interactive streaming where the client can tell the server that packet loss has
+    /// occurred.  In this case, keyint can be set to an extremely high value so that intra refreshes
+    /// only occur when calling x264_encoder_intra_refresh.
+    ///
+    /// In multi-pass encoding, if x264_encoder_intra_refresh is called differently in each pass,
+    /// behavior is undefined.
+    ///
+    /// Should not be called during an x264_encoder_encode.
+    pub fn intra_refresh(&self) {
+        unsafe { x264_encoder_intra_refresh(self.raw); }
     }
 
     /// The width required of any input images.
@@ -144,16 +164,16 @@ impl Flush {
         }
 
         let mut len = 0;
-        let mut stuff = unsafe { mem::uninitialized() };
-        let mut raw = unsafe { mem::uninitialized() };
+        let mut stuff = mem::MaybeUninit::uninit();
+        let mut raw = mem::MaybeUninit::uninit();
 
         let err = unsafe {
             x264_encoder_encode(
                 enc,
-                &mut stuff,
+                stuff.as_mut_ptr(),
                 &mut len,
                 ptr::null_mut(),
-                &mut raw
+                raw.as_mut_ptr(),
             )
         };
 
@@ -161,8 +181,8 @@ impl Flush {
             Err(Error)
         } else {
             Ok(unsafe {(
-                Data::from_raw_parts(stuff, len as usize),
-                Picture::from_raw(raw),
+                Data::from_raw_parts(stuff.assume_init(), len as usize),
+                Picture::from_raw(raw.assume_init()),
             )})
         })
     }

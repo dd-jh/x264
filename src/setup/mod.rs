@@ -21,18 +21,18 @@ impl Setup {
         fast_decode: bool,
         zero_latency: bool
     ) -> Self {
-        let mut raw = unsafe { mem::uninitialized() };
+        let mut raw = mem::MaybeUninit::uninit();
 
         // Name validity verified at compile-time.
         assert_eq!(0, unsafe {
             x264_param_default_preset(
-                &mut raw,
+                raw.as_mut_ptr(),
                 preset.to_cstr(),
                 tune.to_cstr(fast_decode, zero_latency)
             )
         });
 
-        Self { raw }
+        Self { raw: unsafe { raw.assume_init() } }
     }
 
     /// Makes the first pass faster.
@@ -133,9 +133,9 @@ impl Setup {
 impl Default for Setup {
     fn default() -> Self {
         let raw = unsafe {
-            let mut raw = mem::uninitialized();
-            x264_param_default(&mut raw);
-            raw
+            let mut raw = mem::MaybeUninit::uninit();
+            x264_param_default(raw.as_mut_ptr());
+            raw.assume_init()
         };
 
         Self { raw }
